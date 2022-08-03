@@ -31,7 +31,7 @@ const BottomSheet = forwardRef<any, any>(
     const exit = async () => {
       await Promise.all([
         controls.start({
-          y: window.screen.height,
+          y: window.innerHeight,
           transition: {
             duration: 0.25
           }
@@ -46,7 +46,7 @@ const BottomSheet = forwardRef<any, any>(
       onClose()
     }
 
-    const height = 400
+    const height = 300
     const { overlayProps } = useOverlay(
       {
         onClose: exit,
@@ -66,8 +66,7 @@ const BottomSheet = forwardRef<any, any>(
       if (isOpen) {
         controls.start(
           {
-            height: height + 200,
-            y: window.screen.height - height + 100
+            y: window.innerHeight - height
           },
           {
             duration: 0.2,
@@ -100,7 +99,7 @@ const BottomSheet = forwardRef<any, any>(
           animate={controls}
           initial={{
             height,
-            y: window.screen.height
+            y: window.innerHeight
           }}
           transition={{
             type: 'spring',
@@ -109,7 +108,7 @@ const BottomSheet = forwardRef<any, any>(
           }}
           drag="y"
           dragConstraints={{
-            top: window.screen.height - height,
+            top: window.innerHeight - height,
             bottom: -200
           }}
           dragElastic={{
@@ -121,7 +120,7 @@ const BottomSheet = forwardRef<any, any>(
               const duration = info.velocity.y
               await Promise.all([
                 controls.start({
-                  y: window.screen.height,
+                  y: window.innerHeight,
                   transition: {
                     duration: 0.2
                   }
