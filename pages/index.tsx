@@ -1,84 +1,244 @@
+import { motion, useAnimation } from 'framer-motion'
 import type { NextPage } from 'next'
-import Head from 'next/head'
-import Image from 'next/image'
+import React, { forwardRef, RefObject, useEffect } from 'react'
+import {
+  AriaButtonProps,
+  DismissButton,
+  FocusScope,
+  mergeProps,
+  OverlayContainer,
+  useButton,
+  useDialog,
+  useModal,
+  useOverlay,
+  useOverlayPosition,
+  useOverlayTrigger
+} from 'react-aria'
+import { useOverlayTriggerState } from 'react-stately'
+
+type Props = {
+  isOpen?: boolean
+  onClose: () => void
+  height?: number
+  children?: React.ReactNode
+}
+
+const BottomSheet = forwardRef<any, any>(
+  ({ children, isOpen, onClose, ...rest }, ref: any) => {
+    const controls = useAnimation()
+    const bgControls = useAnimation()
+
+    const exit = async () => {
+      await Promise.all([
+        controls.start({
+          y: window.screen.height,
+          transition: {
+            duration: 0.25
+          }
+        }),
+        bgControls.start({
+          opacity: 0,
+          transition: {
+            duration: 0.25
+          }
+        })
+      ])
+      onClose()
+    }
+
+    const height = 400
+    const { overlayProps } = useOverlay(
+      {
+        onClose: exit,
+        isOpen,
+        isDismissable: true
+      },
+      ref
+    )
+
+    // Hide content outside the modal from screen readers.
+    const { modalProps } = useModal()
+
+    // Get props for the dialog and its title
+    let { dialogProps, titleProps } = useDialog({}, ref)
+
+    useEffect(() => {
+      if (isOpen) {
+        controls.start(
+          {
+            height: height + 200,
+            y: window.screen.height - height + 100
+          },
+          {
+            duration: 0.2,
+            type: 'spring',
+            damping: 15,
+            stiffness: 100
+          }
+        )
+        bgControls.start(
+          {
+            opacity: 1
+          },
+          {
+            duration: 0.3
+          }
+        )
+      }
+    }, [isOpen])
+
+    return (
+      <>
+        <motion.div
+          className="fixed z-50 top-0 bottom-0 left-0 right-0 bg-black/30 backdrop-blur-sm"
+          initial={{
+            opacity: 0
+          }}
+          animate={bgControls}
+        />
+        <motion.div
+          animate={controls}
+          initial={{
+            height,
+            y: window.screen.height
+          }}
+          transition={{
+            type: 'spring',
+            damping: 15,
+            stiffness: 100
+          }}
+          drag="y"
+          dragConstraints={{
+            top: window.screen.height - height,
+            bottom: -200
+          }}
+          dragElastic={{
+            top: 0.05,
+            bottom: 1
+          }}
+          onDragEnd={async (_, info) => {
+            if (info.velocity.y > 100) {
+              const duration = info.velocity.y
+              await Promise.all([
+                controls.start({
+                  y: window.screen.height,
+                  transition: {
+                    duration: 0.2
+                  }
+                }),
+                bgControls.start({
+                  opacity: 0,
+                  transition: {
+                    duration: 0.25
+                  }
+                })
+              ])
+              onClose()
+            }
+          }}
+          className="focus:outline-none"
+          style={{
+            position: 'fixed',
+            height,
+            zIndex: 9999,
+            left: 0,
+            right: 0
+          }}
+        >
+          <FocusScope restoreFocus>
+            <div
+              {...mergeProps(overlayProps, dialogProps, rest, modalProps)}
+              animate={controls}
+              ref={ref}
+              className="bg-neutral-700 w-full focus:outline-none rounded-t-xl"
+              style={{
+                height: 400
+              }}
+            >
+              {children}
+              <DismissButton onDismiss={onClose} />
+            </div>
+          </FocusScope>
+        </motion.div>
+      </>
+    )
+  }
+)
+
+type ButtonProps = AriaButtonProps<'button'> & {
+  className?: string
+  style?: any
+  buttonRef: RefObject<any>
+}
+
+function Button(props: ButtonProps) {
+  let ref = props.buttonRef
+  let { buttonProps } = useButton(props, ref)
+  return (
+    <button
+      {...buttonProps}
+      className={props.className}
+      ref={ref}
+      style={props.style}
+    >
+      {props.children}
+    </button>
+  )
+}
 
 const Home: NextPage = () => {
+  const state = useOverlayTriggerState({})
+  const triggerRef = React.useRef(null)
+  const overlayRef = React.useRef(null)
+
+  // Get props for the trigger and overlay. This also handles
+  // hiding the overlay when a parent element of the trigger scrolls
+  // (which invalidates the popover positioning).
+  const { triggerProps, overlayProps } = useOverlayTrigger(
+    { type: 'dialog' },
+    state,
+    triggerRef
+  )
+
+  // Get popover positioning props relative to the trigger
+  const { overlayProps: positionProps } = useOverlayPosition({
+    targetRef: triggerRef,
+    overlayRef,
+    placement: 'top',
+    offset: 5,
+    isOpen: state.isOpen
+  })
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center py-2">
-      <Head>
-        <title>Create Next App</title>
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
-
-      <main className="flex w-full flex-1 flex-col items-center justify-center px-20 text-center">
-        <h1 className="text-6xl font-bold">
-          Welcome to{' '}
-          <a className="text-blue-600" href="https://nextjs.org">
-            Next.js!
-          </a>
-        </h1>
-
-        <p className="mt-3 text-2xl">
-          Get started by editing{' '}
-          <code className="rounded-md bg-gray-100 p-3 font-mono text-lg">
-            pages/index.tsx
-          </code>
-        </p>
-
-        <div className="mt-6 flex max-w-4xl flex-wrap items-center justify-around sm:w-full">
-          <a
-            href="https://nextjs.org/docs"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
+    <div className="p-4 text-center">
+      <Button
+        className="rounded-full text-white bg-black px-4 py-2"
+        buttonRef={triggerRef}
+        {...triggerProps}
+      >
+        Click Me
+      </Button>
+      {state.isOpen && (
+        <OverlayContainer>
+          <BottomSheet
+            {...overlayProps}
+            ref={overlayRef}
+            title="Popover title"
+            isOpen={state.isOpen}
+            onClose={state.close}
           >
-            <h3 className="text-2xl font-bold">Documentation &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Find in-depth information about Next.js features and its API.
-            </p>
-          </a>
-
-          <a
-            href="https://nextjs.org/learn"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Learn &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Learn about Next.js in an interactive course with quizzes!
-            </p>
-          </a>
-
-          <a
-            href="https://github.com/vercel/next.js/tree/canary/examples"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Examples &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Discover and deploy boilerplate example Next.js projects.
-            </p>
-          </a>
-
-          <a
-            href="https://vercel.com/import?filter=next.js&utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className="mt-6 w-96 rounded-xl border p-6 text-left hover:text-blue-600 focus:text-blue-600"
-          >
-            <h3 className="text-2xl font-bold">Deploy &rarr;</h3>
-            <p className="mt-4 text-xl">
-              Instantly deploy your Next.js site to a public URL with Vercel.
-            </p>
-          </a>
-        </div>
-      </main>
-
-      <footer className="flex h-24 w-full items-center justify-center border-t">
-        <a
-          className="flex items-center justify-center gap-2"
-          href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Powered by{' '}
-          <Image src="/vercel.svg" alt="Vercel Logo" width={72} height={16} />
-        </a>
-      </footer>
+            <div className="p-4">
+              <h3 className="text-xs font-bold text-neutral-400">Sort by</h3>
+              <ul>
+                <li className="py-2 text-neutral-200">Custom order</li>
+                <li className="py-2 text-neutral-200">Title</li>
+                <li className="py-2 text-neutral-200">Artist</li>
+                <li className="py-2 text-neutral-200">Album</li>
+              </ul>
+            </div>
+          </BottomSheet>
+        </OverlayContainer>
+      )}
     </div>
   )
 }
